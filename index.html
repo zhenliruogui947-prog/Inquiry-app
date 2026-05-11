@@ -188,9 +188,7 @@
       font-size: 0.9rem;
     }
 
-    .loading::before {
-      content: '⏳ ';
-    }
+    .loading::before { content: '⏳ '; }
 
     /* エクスポートボタン */
     .export-row {
@@ -315,83 +313,99 @@
 <div class="toast" id="toast"></div>
 
 <script>
+  // ================================================================
+  // GAS WebApp URL — デプロイ後にここを書き換えてください
+  // 例: 'https://script.google.com/macros/s/XXXXXXXXXX/exec'
+  // ================================================================
+  const GAS_URL = 'YOUR_GAS_WEBAPP_URL_HERE';
+
   let currentFilter = 'today';
 
   window.onload = function () {
+    if (GAS_URL === 'YOUR_GAS_WEBAPP_URL_HERE') {
+      document.getElementById('summaryContainer').innerHTML =
+        '<div class="empty">GAS_URL が未設定です。index.html の GAS_URL を書き換えてください。</div>';
+      showToast('GAS_URL を設定してください', 'error');
+      return;
+    }
     loadCategories();
     loadSummary();
   };
 
+  // ---- API 呼び出し共通関数 ----
+
+  async function callApi(action, params) {
+    const res = await fetch(GAS_URL, {
+      method: 'POST',
+      body: JSON.stringify({ action, ...params }),
+    });
+    if (!res.ok) throw new Error('HTTP ' + res.status);
+    const data = await res.json();
+    if (data && data.error) throw new Error(data.error);
+    return data;
+  }
+
   // ---- カテゴリ読み込み ----
 
-  function loadCategories() {
-    google.script.run
-      .withSuccessHandler(function (cats) {
-        var sel = document.getElementById('category');
-        if (!cats || cats.length === 0) {
-          sel.innerHTML = '<option value="">（カテゴリなし）</option>';
-          return;
-        }
-        sel.innerHTML = cats.map(function (c) {
-          return '<option value="' + escHtml(c) + '">' + escHtml(c) + '</option>';
-        }).join('');
-      })
-      .withFailureHandler(function () {
-        showToast('カテゴリの読み込みに失敗しました', 'error');
-      })
-      .getCategories();
+  async function loadCategories() {
+    try {
+      const cats = await callApi('getCategories', {});
+      const sel = document.getElementById('category');
+      if (!cats || cats.length === 0) {
+        sel.innerHTML = '<option value="">（カテゴリなし）</option>';
+        return;
+      }
+      sel.innerHTML = cats.map(c =>
+        `<option value="${escHtml(c)}">${escHtml(c)}</option>`
+      ).join('');
+    } catch (e) {
+      showToast('カテゴリの読み込みに失敗しました', 'error');
+    }
   }
 
   // ---- 工数クイック入力 ----
 
   function setTime(min) {
     document.getElementById('minutes').value = min;
-    document.querySelectorAll('.quick-btn').forEach(function (b) {
+    document.querySelectorAll('.quick-btn').forEach(b => {
       b.classList.toggle('active', parseInt(b.dataset.min, 10) === min);
     });
   }
 
   // ---- 記録送信 ----
 
-  function submitInquiry() {
-    var category = document.getElementById('category').value;
-    var minutes  = parseInt(document.getElementById('minutes').value, 10);
-    var memo     = document.getElementById('memo').value;
+  async function submitInquiry() {
+    const category = document.getElementById('category').value;
+    const minutes  = parseInt(document.getElementById('minutes').value, 10);
+    const memo     = document.getElementById('memo').value;
 
     if (!category)           { showToast('種別を選択してください', 'error'); return; }
     if (!minutes || minutes <= 0) { showToast('工数（分）を入力してください', 'error'); return; }
 
-    var btn = document.getElementById('submitBtn');
+    const btn = document.getElementById('submitBtn');
     btn.disabled    = true;
     btn.textContent = '記録中…';
 
-    google.script.run
-      .withSuccessHandler(function () {
-        showToast('記録しました！', 'success');
-        document.getElementById('minutes').value = '';
-        document.getElementById('memo').value    = '';
-        document.querySelectorAll('.quick-btn').forEach(function (b) {
-          b.classList.remove('active');
-        });
-        btn.disabled    = false;
-        btn.textContent = '記録する';
-        loadSummary();
-      })
-      .withFailureHandler(function () {
-        showToast('記録に失敗しました', 'error');
-        btn.disabled    = false;
-        btn.textContent = '記録する';
-      })
-      .saveInquiry(category, minutes, memo);
+    try {
+      await callApi('saveInquiry', { category, minutes, memo });
+      showToast('記録しました！', 'success');
+      document.getElementById('minutes').value = '';
+      document.getElementById('memo').value    = '';
+      document.querySelectorAll('.quick-btn').forEach(b => b.classList.remove('active'));
+      loadSummary();
+    } catch (e) {
+      showToast('記録に失敗しました', 'error');
+    } finally {
+      btn.disabled    = false;
+      btn.textContent = '記録する';
+    }
   }
 
   // ---- 期間フィルタ ----
 
   function setFilter(filter) {
     currentFilter = filter;
-    document.querySelectorAll('.chip').forEach(function (b) {
-      b.classList.remove('active');
-    });
+    document.querySelectorAll('.chip').forEach(b => b.classList.remove('active'));
     document.getElementById('chip-' + filter).classList.add('active');
     document.getElementById('customRange').style.display =
       filter === 'custom' ? 'flex' : 'none';
@@ -399,21 +413,18 @@
   }
 
   function getDateRange() {
-    var today = new Date();
-    var fmt   = function (d) { return d.toISOString().split('T')[0]; };
+    const today = new Date();
+    const fmt   = d => d.toISOString().split('T')[0];
 
-    if (currentFilter === 'today') {
-      return { start: fmt(today), end: fmt(today) };
-    }
+    if (currentFilter === 'today') return { start: fmt(today), end: fmt(today) };
     if (currentFilter === 'week') {
-      var mon = new Date(today);
-      var day = today.getDay();
+      const mon = new Date(today);
+      const day = today.getDay();
       mon.setDate(today.getDate() - (day === 0 ? 6 : day - 1));
       return { start: fmt(mon), end: fmt(today) };
     }
     if (currentFilter === 'month') {
-      var first = new Date(today.getFullYear(), today.getMonth(), 1);
-      return { start: fmt(first), end: fmt(today) };
+      return { start: fmt(new Date(today.getFullYear(), today.getMonth(), 1)), end: fmt(today) };
     }
     if (currentFilter === 'custom') {
       return {
@@ -426,87 +437,83 @@
 
   // ---- 集計読み込み ----
 
-  function loadSummary() {
-    var range = getDateRange();
+  async function loadSummary() {
+    const range = getDateRange();
     document.getElementById('summaryContainer').innerHTML =
       '<div class="loading">集計中…</div>';
-
-    google.script.run
-      .withSuccessHandler(renderSummary)
-      .withFailureHandler(function () {
-        document.getElementById('summaryContainer').innerHTML =
-          '<div class="empty">集計の取得に失敗しました</div>';
-      })
-      .getSummary(range.start, range.end);
+    try {
+      const data = await callApi('getSummary', { startDate: range.start, endDate: range.end });
+      renderSummary(data);
+    } catch (e) {
+      document.getElementById('summaryContainer').innerHTML =
+        '<div class="empty">集計の取得に失敗しました</div>';
+    }
   }
 
   function renderSummary(data) {
-    var container = document.getElementById('summaryContainer');
+    const container = document.getElementById('summaryContainer');
     if (!data || data.length === 0) {
       container.innerHTML = '<div class="empty">該当期間のデータがありません</div>';
       return;
     }
 
-    var totalCount = data.reduce(function (s, d) { return s + d.count;   }, 0);
-    var totalMin   = data.reduce(function (s, d) { return s + d.minutes; }, 0);
+    const totalCount = data.reduce((s, d) => s + d.count,   0);
+    const totalMin   = data.reduce((s, d) => s + d.minutes, 0);
 
-    var rows = data.map(function (d) {
-      return '<tr>'
-        + '<td>' + escHtml(d.category) + '</td>'
-        + '<td class="num">' + d.count + '</td>'
-        + '<td class="num">' + d.minutes + '</td>'
-        + '<td class="num">' + (d.minutes / 60).toFixed(1) + '</td>'
-        + '</tr>';
-    }).join('');
+    const rows = data.map(d =>
+      `<tr>
+        <td>${escHtml(d.category)}</td>
+        <td class="num">${d.count}</td>
+        <td class="num">${d.minutes}</td>
+        <td class="num">${(d.minutes / 60).toFixed(1)}</td>
+      </tr>`
+    ).join('');
 
     container.innerHTML =
-      '<table>'
-      + '<thead><tr>'
-      + '<th>カテゴリ</th><th>件数</th><th>合計(分)</th><th>合計(時間)</th>'
-      + '</tr></thead>'
-      + '<tbody>'
-      + rows
-      + '<tr class="total-row">'
-      + '<td>合計</td>'
-      + '<td class="num">' + totalCount + '</td>'
-      + '<td class="num">' + totalMin + '</td>'
-      + '<td class="num">' + (totalMin / 60).toFixed(1) + '</td>'
-      + '</tr>'
-      + '</tbody>'
-      + '</table>';
+      `<table>
+        <thead><tr>
+          <th>カテゴリ</th><th>件数</th><th>合計(分)</th><th>合計(時間)</th>
+        </tr></thead>
+        <tbody>
+          ${rows}
+          <tr class="total-row">
+            <td>合計</td>
+            <td class="num">${totalCount}</td>
+            <td class="num">${totalMin}</td>
+            <td class="num">${(totalMin / 60).toFixed(1)}</td>
+          </tr>
+        </tbody>
+      </table>`;
   }
 
   // ---- Excel エクスポート ----
 
-  function exportExcel() {
-    var range = getDateRange();
-    var btn   = document.getElementById('exportBtn');
+  async function exportExcel() {
+    const range = getDateRange();
+    const btn   = document.getElementById('exportBtn');
     btn.disabled    = true;
     btn.textContent = '準備中…';
 
-    google.script.run
-      .withSuccessHandler(function (url) {
-        window.open(url, '_blank');
-        btn.disabled    = false;
-        btn.textContent = 'Excel でダウンロード';
-        showToast('ダウンロードを開始します', 'success');
-      })
-      .withFailureHandler(function () {
-        showToast('エクスポートに失敗しました', 'error');
-        btn.disabled    = false;
-        btn.textContent = 'Excel でダウンロード';
-      })
-      .exportToExcel(range.start, range.end);
+    try {
+      const url = await callApi('exportToExcel', { startDate: range.start, endDate: range.end });
+      window.open(url, '_blank');
+      showToast('ダウンロードを開始します', 'success');
+    } catch (e) {
+      showToast('エクスポートに失敗しました', 'error');
+    } finally {
+      btn.disabled    = false;
+      btn.textContent = 'Excel でダウンロード';
+    }
   }
 
   // ---- ユーティリティ ----
 
   function showToast(msg, type) {
-    var t = document.getElementById('toast');
-    t.textContent  = msg;
-    t.className    = 'toast ' + type;
+    const t = document.getElementById('toast');
+    t.textContent   = msg;
+    t.className     = 'toast ' + type;
     t.style.display = 'block';
-    setTimeout(function () { t.style.display = 'none'; }, 3000);
+    setTimeout(() => { t.style.display = 'none'; }, 3000);
   }
 
   function escHtml(str) {
