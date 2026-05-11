@@ -1,0 +1,522 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>問い合わせ工数集計</title>
+  <style>
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+
+    body {
+      font-family: 'Segoe UI', 'Hiragino Sans', 'Meiryo', sans-serif;
+      background: #f0f4f8;
+      color: #333;
+      min-height: 100vh;
+    }
+
+    header {
+      background: #1a73e8;
+      color: #fff;
+      padding: 14px 24px;
+      font-size: 1.1rem;
+      font-weight: 700;
+      letter-spacing: 0.03em;
+    }
+
+    .container {
+      max-width: 760px;
+      margin: 24px auto;
+      padding: 0 16px;
+    }
+
+    .card {
+      background: #fff;
+      border-radius: 10px;
+      box-shadow: 0 2px 8px rgba(0,0,0,0.08);
+      padding: 24px;
+      margin-bottom: 20px;
+    }
+
+    .card h2 {
+      font-size: 0.95rem;
+      color: #1a73e8;
+      font-weight: 700;
+      margin-bottom: 18px;
+      padding-bottom: 10px;
+      border-bottom: 2px solid #e8f0fe;
+    }
+
+    .form-group { margin-bottom: 16px; }
+
+    label {
+      display: block;
+      font-size: 0.82rem;
+      font-weight: 600;
+      color: #555;
+      margin-bottom: 6px;
+    }
+
+    select, input[type="text"], input[type="number"], input[type="date"] {
+      width: 100%;
+      padding: 10px 12px;
+      border: 1px solid #dadce0;
+      border-radius: 6px;
+      font-size: 0.95rem;
+      transition: border-color 0.2s, box-shadow 0.2s;
+      background: #fff;
+    }
+
+    select:focus, input:focus {
+      outline: none;
+      border-color: #1a73e8;
+      box-shadow: 0 0 0 3px rgba(26,115,232,0.15);
+    }
+
+    .quick-btns {
+      display: flex;
+      gap: 8px;
+      flex-wrap: wrap;
+      margin-top: 8px;
+    }
+
+    .quick-btn {
+      padding: 5px 14px;
+      border: 1px solid #1a73e8;
+      border-radius: 20px;
+      background: #fff;
+      color: #1a73e8;
+      cursor: pointer;
+      font-size: 0.82rem;
+      transition: all 0.15s;
+    }
+
+    .quick-btn:hover { background: #e8f0fe; }
+    .quick-btn.active { background: #1a73e8; color: #fff; }
+
+    .btn-primary {
+      width: 100%;
+      padding: 12px;
+      background: #1a73e8;
+      color: #fff;
+      border: none;
+      border-radius: 6px;
+      font-size: 1rem;
+      font-weight: 700;
+      cursor: pointer;
+      transition: background 0.2s;
+      margin-top: 4px;
+    }
+
+    .btn-primary:hover:not(:disabled) { background: #1557b0; }
+
+    .btn-primary:disabled {
+      background: #b0c4ef;
+      cursor: not-allowed;
+    }
+
+    /* フィルタ */
+    .filter-chips {
+      display: flex;
+      gap: 8px;
+      flex-wrap: wrap;
+      margin-bottom: 14px;
+    }
+
+    .chip {
+      padding: 5px 14px;
+      border: 1px solid #dadce0;
+      border-radius: 20px;
+      background: #fff;
+      font-size: 0.82rem;
+      cursor: pointer;
+      transition: all 0.15s;
+    }
+
+    .chip:hover { background: #f1f3f4; }
+    .chip.active { background: #1a73e8; color: #fff; border-color: #1a73e8; }
+
+    .date-range {
+      display: flex;
+      gap: 12px;
+      flex-wrap: wrap;
+      margin-bottom: 14px;
+    }
+
+    .date-range .form-group {
+      flex: 1;
+      min-width: 140px;
+      margin-bottom: 0;
+    }
+
+    /* 集計テーブル */
+    .table-wrap { overflow-x: auto; }
+
+    table {
+      width: 100%;
+      border-collapse: collapse;
+      font-size: 0.88rem;
+    }
+
+    thead tr { background: #1a73e8; color: #fff; }
+
+    th {
+      padding: 10px 14px;
+      text-align: left;
+      font-weight: 600;
+      white-space: nowrap;
+    }
+
+    td {
+      padding: 10px 14px;
+      border-bottom: 1px solid #f1f3f4;
+    }
+
+    tbody tr:hover td { background: #f8fbff; }
+
+    .total-row td {
+      font-weight: 700;
+      background: #e8f0fe;
+      border-bottom: none;
+    }
+
+    td.num { text-align: right; }
+
+    .empty, .loading {
+      text-align: center;
+      color: #aaa;
+      padding: 32px 0;
+      font-size: 0.9rem;
+    }
+
+    .loading::before {
+      content: '⏳ ';
+    }
+
+    /* エクスポートボタン */
+    .export-row {
+      display: flex;
+      justify-content: flex-end;
+      margin-top: 16px;
+    }
+
+    .btn-export {
+      padding: 9px 22px;
+      background: #34a853;
+      color: #fff;
+      border: none;
+      border-radius: 6px;
+      font-size: 0.9rem;
+      font-weight: 700;
+      cursor: pointer;
+      transition: background 0.2s;
+    }
+
+    .btn-export:hover:not(:disabled) { background: #2d7d46; }
+    .btn-export:disabled { background: #a8d5b5; cursor: not-allowed; }
+
+    /* トースト通知 */
+    .toast {
+      position: fixed;
+      top: 20px;
+      right: 20px;
+      padding: 12px 20px;
+      border-radius: 8px;
+      color: #fff;
+      font-size: 0.9rem;
+      font-weight: 600;
+      z-index: 1000;
+      display: none;
+      box-shadow: 0 4px 12px rgba(0,0,0,0.15);
+      animation: fadeInRight 0.3s ease;
+    }
+
+    .toast.success { background: #34a853; }
+    .toast.error   { background: #ea4335; }
+
+    @keyframes fadeInRight {
+      from { transform: translateX(60px); opacity: 0; }
+      to   { transform: translateX(0);    opacity: 1; }
+    }
+  </style>
+</head>
+<body>
+
+<header>問い合わせ工数集計</header>
+
+<div class="container">
+
+  <!-- 入力フォーム -->
+  <div class="card">
+    <h2>工数を記録する</h2>
+
+    <div class="form-group">
+      <label for="category">問い合わせ種別</label>
+      <select id="category">
+        <option value="">読み込み中…</option>
+      </select>
+    </div>
+
+    <div class="form-group">
+      <label for="minutes">工数（分）</label>
+      <input type="number" id="minutes" min="1" max="480" placeholder="例: 30">
+      <div class="quick-btns">
+        <button class="quick-btn" data-min="5"  onclick="setTime(5)">5分</button>
+        <button class="quick-btn" data-min="10" onclick="setTime(10)">10分</button>
+        <button class="quick-btn" data-min="15" onclick="setTime(15)">15分</button>
+        <button class="quick-btn" data-min="30" onclick="setTime(30)">30分</button>
+        <button class="quick-btn" data-min="60" onclick="setTime(60)">60分</button>
+      </div>
+    </div>
+
+    <div class="form-group">
+      <label for="memo">メモ（任意）</label>
+      <input type="text" id="memo" placeholder="補足があれば入力してください">
+    </div>
+
+    <button class="btn-primary" id="submitBtn" onclick="submitInquiry()">記録する</button>
+  </div>
+
+  <!-- 集計 -->
+  <div class="card">
+    <h2>集計結果</h2>
+
+    <div class="filter-chips">
+      <button class="chip active" id="chip-today"  onclick="setFilter('today')">今日</button>
+      <button class="chip"        id="chip-week"   onclick="setFilter('week')">今週</button>
+      <button class="chip"        id="chip-month"  onclick="setFilter('month')">今月</button>
+      <button class="chip"        id="chip-all"    onclick="setFilter('all')">全期間</button>
+      <button class="chip"        id="chip-custom" onclick="setFilter('custom')">カスタム</button>
+    </div>
+
+    <div class="date-range" id="customRange" style="display:none;">
+      <div class="form-group">
+        <label>開始日</label>
+        <input type="date" id="startDate" onchange="loadSummary()">
+      </div>
+      <div class="form-group">
+        <label>終了日</label>
+        <input type="date" id="endDate" onchange="loadSummary()">
+      </div>
+    </div>
+
+    <div class="table-wrap" id="summaryContainer">
+      <div class="loading">集計中…</div>
+    </div>
+
+    <div class="export-row">
+      <button class="btn-export" id="exportBtn" onclick="exportExcel()">
+        Excel でダウンロード
+      </button>
+    </div>
+  </div>
+
+</div><!-- /container -->
+
+<div class="toast" id="toast"></div>
+
+<script>
+  let currentFilter = 'today';
+
+  window.onload = function () {
+    loadCategories();
+    loadSummary();
+  };
+
+  // ---- カテゴリ読み込み ----
+
+  function loadCategories() {
+    google.script.run
+      .withSuccessHandler(function (cats) {
+        var sel = document.getElementById('category');
+        if (!cats || cats.length === 0) {
+          sel.innerHTML = '<option value="">（カテゴリなし）</option>';
+          return;
+        }
+        sel.innerHTML = cats.map(function (c) {
+          return '<option value="' + escHtml(c) + '">' + escHtml(c) + '</option>';
+        }).join('');
+      })
+      .withFailureHandler(function () {
+        showToast('カテゴリの読み込みに失敗しました', 'error');
+      })
+      .getCategories();
+  }
+
+  // ---- 工数クイック入力 ----
+
+  function setTime(min) {
+    document.getElementById('minutes').value = min;
+    document.querySelectorAll('.quick-btn').forEach(function (b) {
+      b.classList.toggle('active', parseInt(b.dataset.min, 10) === min);
+    });
+  }
+
+  // ---- 記録送信 ----
+
+  function submitInquiry() {
+    var category = document.getElementById('category').value;
+    var minutes  = parseInt(document.getElementById('minutes').value, 10);
+    var memo     = document.getElementById('memo').value;
+
+    if (!category)           { showToast('種別を選択してください', 'error'); return; }
+    if (!minutes || minutes <= 0) { showToast('工数（分）を入力してください', 'error'); return; }
+
+    var btn = document.getElementById('submitBtn');
+    btn.disabled    = true;
+    btn.textContent = '記録中…';
+
+    google.script.run
+      .withSuccessHandler(function () {
+        showToast('記録しました！', 'success');
+        document.getElementById('minutes').value = '';
+        document.getElementById('memo').value    = '';
+        document.querySelectorAll('.quick-btn').forEach(function (b) {
+          b.classList.remove('active');
+        });
+        btn.disabled    = false;
+        btn.textContent = '記録する';
+        loadSummary();
+      })
+      .withFailureHandler(function () {
+        showToast('記録に失敗しました', 'error');
+        btn.disabled    = false;
+        btn.textContent = '記録する';
+      })
+      .saveInquiry(category, minutes, memo);
+  }
+
+  // ---- 期間フィルタ ----
+
+  function setFilter(filter) {
+    currentFilter = filter;
+    document.querySelectorAll('.chip').forEach(function (b) {
+      b.classList.remove('active');
+    });
+    document.getElementById('chip-' + filter).classList.add('active');
+    document.getElementById('customRange').style.display =
+      filter === 'custom' ? 'flex' : 'none';
+    loadSummary();
+  }
+
+  function getDateRange() {
+    var today = new Date();
+    var fmt   = function (d) { return d.toISOString().split('T')[0]; };
+
+    if (currentFilter === 'today') {
+      return { start: fmt(today), end: fmt(today) };
+    }
+    if (currentFilter === 'week') {
+      var mon = new Date(today);
+      var day = today.getDay();
+      mon.setDate(today.getDate() - (day === 0 ? 6 : day - 1));
+      return { start: fmt(mon), end: fmt(today) };
+    }
+    if (currentFilter === 'month') {
+      var first = new Date(today.getFullYear(), today.getMonth(), 1);
+      return { start: fmt(first), end: fmt(today) };
+    }
+    if (currentFilter === 'custom') {
+      return {
+        start: document.getElementById('startDate').value || null,
+        end:   document.getElementById('endDate').value   || null,
+      };
+    }
+    return { start: null, end: null };
+  }
+
+  // ---- 集計読み込み ----
+
+  function loadSummary() {
+    var range = getDateRange();
+    document.getElementById('summaryContainer').innerHTML =
+      '<div class="loading">集計中…</div>';
+
+    google.script.run
+      .withSuccessHandler(renderSummary)
+      .withFailureHandler(function () {
+        document.getElementById('summaryContainer').innerHTML =
+          '<div class="empty">集計の取得に失敗しました</div>';
+      })
+      .getSummary(range.start, range.end);
+  }
+
+  function renderSummary(data) {
+    var container = document.getElementById('summaryContainer');
+    if (!data || data.length === 0) {
+      container.innerHTML = '<div class="empty">該当期間のデータがありません</div>';
+      return;
+    }
+
+    var totalCount = data.reduce(function (s, d) { return s + d.count;   }, 0);
+    var totalMin   = data.reduce(function (s, d) { return s + d.minutes; }, 0);
+
+    var rows = data.map(function (d) {
+      return '<tr>'
+        + '<td>' + escHtml(d.category) + '</td>'
+        + '<td class="num">' + d.count + '</td>'
+        + '<td class="num">' + d.minutes + '</td>'
+        + '<td class="num">' + (d.minutes / 60).toFixed(1) + '</td>'
+        + '</tr>';
+    }).join('');
+
+    container.innerHTML =
+      '<table>'
+      + '<thead><tr>'
+      + '<th>カテゴリ</th><th>件数</th><th>合計(分)</th><th>合計(時間)</th>'
+      + '</tr></thead>'
+      + '<tbody>'
+      + rows
+      + '<tr class="total-row">'
+      + '<td>合計</td>'
+      + '<td class="num">' + totalCount + '</td>'
+      + '<td class="num">' + totalMin + '</td>'
+      + '<td class="num">' + (totalMin / 60).toFixed(1) + '</td>'
+      + '</tr>'
+      + '</tbody>'
+      + '</table>';
+  }
+
+  // ---- Excel エクスポート ----
+
+  function exportExcel() {
+    var range = getDateRange();
+    var btn   = document.getElementById('exportBtn');
+    btn.disabled    = true;
+    btn.textContent = '準備中…';
+
+    google.script.run
+      .withSuccessHandler(function (url) {
+        window.open(url, '_blank');
+        btn.disabled    = false;
+        btn.textContent = 'Excel でダウンロード';
+        showToast('ダウンロードを開始します', 'success');
+      })
+      .withFailureHandler(function () {
+        showToast('エクスポートに失敗しました', 'error');
+        btn.disabled    = false;
+        btn.textContent = 'Excel でダウンロード';
+      })
+      .exportToExcel(range.start, range.end);
+  }
+
+  // ---- ユーティリティ ----
+
+  function showToast(msg, type) {
+    var t = document.getElementById('toast');
+    t.textContent  = msg;
+    t.className    = 'toast ' + type;
+    t.style.display = 'block';
+    setTimeout(function () { t.style.display = 'none'; }, 3000);
+  }
+
+  function escHtml(str) {
+    return String(str)
+      .replace(/&/g, '&amp;')
+      .replace(/</g, '&lt;')
+      .replace(/>/g, '&gt;')
+      .replace(/"/g, '&quot;');
+  }
+</script>
+
+</body>
+</html>
