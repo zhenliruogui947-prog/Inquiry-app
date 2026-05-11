@@ -51,6 +51,10 @@ clasp open                     # GAS エディタをブラウザで開く
 - **カテゴリ変更**: スプレッドシートの「カテゴリ」シートを直接編集すれば UI に反映される。
 - **Excel エクスポート**: `exportToExcel()` が「集計結果」シートを上書きし、スプレッドシート全体を `.xlsx` でダウンロードするURLを返す。
 
+## GitHub リポジトリ
+
+https://github.com/zhenliruogui947-prog/Inquiry-app
+
 ## GAS 固有の制約
 
 - 実行時間上限は **6分**。大量データの一括処理が必要な場合は分割を検討すること。
