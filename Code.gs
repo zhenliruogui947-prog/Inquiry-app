@@ -4,41 +4,10 @@
 
 const SS_NAME = '問い合わせ工数集計データ';
 
-// ---- REST API エントリーポイント ----
-
 function doGet() {
-  return ContentService.createTextOutput(JSON.stringify({ status: 'ok', app: 'Inquiry-app' }))
-    .setMimeType(ContentService.MimeType.JSON);
-}
-
-function doPost(e) {
-  try {
-    const params = JSON.parse(e.postData.contents);
-    let result;
-
-    switch (params.action) {
-      case 'getCategories':
-        result = getCategories();
-        break;
-      case 'saveInquiry':
-        result = saveInquiry(params.category, params.minutes, params.memo);
-        break;
-      case 'getSummary':
-        result = getSummary(params.startDate, params.endDate);
-        break;
-      case 'exportToExcel':
-        result = exportToExcel(params.startDate, params.endDate);
-        break;
-      default:
-        result = { error: 'Unknown action: ' + params.action };
-    }
-
-    return ContentService.createTextOutput(JSON.stringify(result))
-      .setMimeType(ContentService.MimeType.JSON);
-  } catch (err) {
-    return ContentService.createTextOutput(JSON.stringify({ error: err.message }))
-      .setMimeType(ContentService.MimeType.JSON);
-  }
+  return HtmlService.createHtmlOutputFromFile('index')
+    .setTitle('問い合わせ工数集計')
+    .setXFrameOptionsMode(HtmlService.XFrameOptionsMode.ALLOWALL);
 }
 
 // ---- スプレッドシート初期化 ----
